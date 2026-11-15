@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FF POS - 스마트 관리 시스템</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; background: #f8f9fa; margin: 0; padding: 0; color: #333; overflow-x: hidden; }
+        header { background: white; padding: 15px; display: flex; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 100; }
+        .menu-toggle { background: none; border: none; font-size: 1.5rem; cursor: pointer; padding: 5px 10px; color: #555; }
+        .sidebar { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: white; box-shadow: 5px 0 15px rgba(0,0,0,0.1); transition: 0.3s ease; z-index: 1001; padding-top: 20px; }
+        .sidebar.active { left: 0; }
+        .sidebar-item { width: 90%; margin: 5px auto; padding: 15px; border: none; border-radius: 10px; background: transparent; text-align: left; font-size: 1rem; color: #555; cursor: pointer; display: flex; align-items: center; }
+        .sidebar-item.active { background: #e7f1ff; color: #007bff; font-weight: bold; }
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 1000; }
+        .overlay.active { display: block; }
+        .container { padding: 20px; max-width: 600px; margin: auto; }
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; border: 2px solid #007bff; margin-bottom: 20px; display: none; background: black; }
+        .page-section { display: none; }
+        .page-section.active { display: block; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
+        th, td { padding: 12px; text-align: center; border-bottom: 1px solid #f1f1f1; }
+        th { background: #f8f9fa; font-size: 0.8rem; color: #777; }
+        .alert-card { background: white; border-radius: 10px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        #finalizeBtn { width: 100%; padding: 18px; background: #28a745; color: white; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: bold; margin-top: 15px; cursor: pointer; }
+        #finalizeBtn:disabled { background: #ccc; cursor: default; }
+    </style>
+</head>
+<body>
+    <header style="justify-content: space-between;">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <div style="display:flex; align-items:center;"><div style="margin-left:10px; font-weight:bold;">🏪 FF POS 관리</div><span id="headerStoreBadge" style="margin-left:10px; background:#e7f1ff; color:#0066cc; padding:5px 12px; border-radius:20px; font-weight:bold; font-size:0.9rem; border:1px solid #b6d4fe;">📍 매장 확인 중...</span></div><button onclick="logoutStore()" style="margin-left:auto; background:#f1f3f5; color:#555; border:1px solid #ddd; padding:6px 12px; border-radius:8px; font-size:0.85rem; font-weight:bold; cursor:pointer;">로그아웃</button>
+    </header>
+
+    <div id="sidebar" class="sidebar">
+        <div id="sidebarStoreHeader" style="padding: 20px; font-weight: bold; color: #007bff; border-bottom: 1px solid #eee; margin-bottom: 10px;">메뉴</div>
+        <button id="inspectModeBtn" class="sidebar-item active" onclick="setMode('inspect')">📦 입고 검수</button>
+        <button id="inventoryModeBtn" class="sidebar-item" onclick="setMode('inventory')">📋 전체 재고 현황</button>
+        <button id="saleModeBtn" class="sidebar-item" onclick="setMode('sale')">💰 상품 판매 (POS)</button>
+        <button id="alertModeBtn" class="sidebar-item" onclick="setMode('alert')">⏰ 폐기 상품 확인</button>
+        <button id="analysisModeBtn" class="sidebar-item" onclick="setMode('analysis')">📊 판매 실적 리포트</button>
+    </div>
+
+    <div id="overlay" class="overlay" onclick="toggleSidebar()"></div>
+
+    <div class="container">
+        <div id="reader"></div>
+
+        <div id="inspectSection" class="page-section active">
+            <h3>📋 입고 검수 목록</h3>
+            <table>
+                <thead><tr><th>상품명</th><th>발주</th><th>실제</th></tr></thead>
+                <tbody id="inspectList"></tbody>
+            </table>
+            <button id="finalizeBtn" disabled>검수 완료 및 DB 저장</button>
+        </div>
+
+        <div id="inventorySection" class="page-section">
+            <h3 style="text-align: center; color: #28a745;">📦 현재 매장 재고 목록</h3>
+            <table>
+                <thead><tr><th>상품명</th><th>유통기한</th><th>수량</th></tr></thead>
+                <tbody id="inventoryList"></tbody>
+            </table>
+        </div>
+
+        <div id="alertSectionPage" class="page-section">
+            <h3 style="text-align: center; color: #ff4757;">⏰ 실시간 폐기 대상</h3>
+            <div id="alertListPage"></div>
+        </div>
+
+        <div id="analysisSection" class="page-section">
+            <h3 style="text-align: center; color: #007bff;">📊 일일 실적 및 AI 발주 추천</h3>
+            
+            <!-- 스마트 발주 추천/경고 영역 -->
+            <div id="recommendationAlerts" style="margin-bottom: 20px;"></div>
+
+            <!-- 조회 모드 전환 (월간 vs 계절별 vs 일일 통계) -->
+            <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+                <button id="btnMonthlyView" onclick="switchAnalysisView('monthly')" style="padding: 10px 18px; border-radius: 8px; border: none; background: #007bff; color: white; font-weight: bold; cursor: pointer;">📆 월간 통합 리포트 (12개월)</button>
+                <button id="btnSeasonalView" onclick="switchAnalysisView('seasonal')" style="padding: 10px 18px; border-radius: 8px; border: 1px solid #007bff; background: white; color: #007bff; font-weight: bold; cursor: pointer;">🌸☀️🍂❄️ 계절별 리포트 (4계절)</button>
+                <button id="btnDailyView" onclick="switchAnalysisView('daily')" style="padding: 10px 18px; border-radius: 8px; border: 1px solid #007bff; background: white; color: #007bff; font-weight: bold; cursor: pointer;">📅 일일 상세 리포트</button>
+            </div>
+
+            <!-- 월 선택기 (기본 활성) -->
+            <div id="monthlyPickerBox" style="text-align: center; margin-bottom: 20px; font-weight: bold; color: #555;">
+                📆 조회 월 선택:
+                <select id="analysisMonth" onchange="updateMonthlyAnalysis(this.value)" style="padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; font-size: 1rem;">
+                    <option value="2025-10">2025년 10월 (가을 - 기준월)</option>
+                    <option value="2025-11">2025년 11월 (가을 - 1차 발주개편)</option>
+                    <option value="2025-12">2025년 12월 (겨울 - 종강/한파)</option>
+                    <option value="2026-01">2026년 01월 (겨울 - 혹한기/온장)</option>
+                    <option value="2026-02">2026년 02월 (겨울 - 해빙기/개강준비)</option>
+                    <option value="2026-03">2026년 03월 (봄 - 1학기 개강 성수기)</option>
+                    <option value="2026-04">2026년 04월 (봄 - 중간고사/피크닉)</option>
+                    <option value="2026-05">2026년 05월 (봄 - 대학축제 최성수기)</option>
+                    <option value="2026-06">2026년 06월 (여름 - 초여름/종강)</option>
+                    <option value="2026-07">2026년 07월 (여름 - 장마/하계방학)</option>
+                    <option value="2026-08">2026년 08월 (여름 - 늦여름/개강준비)</option>
+                    <option value="2026-09">2026년 09월 (가을 - 2학기 개강 성수기)</option>
+                    <option value="2026-10">2026년 10월 (가을 - 1년 발주개편 완성)</option>
+                </select>
+            </div>
+
+            <!-- 계절 선택기 -->
+            <div id="seasonalPickerBox" style="display: none; text-align: center; margin-bottom: 20px; font-weight: bold; color: #555;">
+                🌿 계절 선택:
+                <select id="analysisSeason" onchange="updateSeasonalAnalysis(this.value)" style="padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; font-size: 1rem;">
+                    <option value="spring">🌸 봄 (2026년 3~5월 - 신학기/나들이)</option>
+                    <option value="summer">☀️ 여름 (2026년 6~8월 - 폭염/방학)</option>
+                    <option value="autumn">🍂 가을 (25년 10~11월, 26년 9~10월 - 학기중)</option>
+                    <option value="winter">❄️ 겨울 (25년 12월 ~ 26년 2월 - 혹한기/온장)</option>
+                </select>
+            </div>
+
+            <!-- 날짜 선택기 -->
+            <div id="dailyPickerBox" style="display: none; text-align: center; margin-bottom: 20px; font-weight: bold; color: #555;">
+                📅 날짜 선택: <input type="text" id="analysisDate" style="padding: 8px; border-radius: 5px; border: 1px solid #ccc; font-size: 1rem; width: 150px; text-align: center;">
+            </div>
+
+            <!-- 당일 총 매출액 카드 -->
+            <div style="background: white; border-radius: 10px; padding: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 5px solid #007bff;">
+                <div style="font-size: 0.9rem; color: #777;">당일 총 매출액 (할인 적용가)</div>
+                <div id="totalRevenueDisplay" style="font-size: 1.5rem; font-weight: bold; color: #28a745; margin-top: 5px;">0원</div>
+            </div>
+
+            <!-- 차트 영역 -->
+            <div style="background: white; border-radius: 10px; padding: 15px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                <canvas id="barChart"></canvas>
+            </div>
+            <div style="background: white; border-radius: 10px; padding: 15px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                <canvas id="pieChart"></canvas>
+            </div>
+
+            <h4 style="text-align: center; color: #555;">상세 데이터</h4>
+            <table>
+                <thead><tr id="analysisTableHead"><th>상품명</th><th>총 입고</th><th>판매</th><th>폐기</th><th>판매율</th><th>매출액</th><th>차기 발주 권고</th></tr></thead>
+                <tbody id="analysisList"></tbody>
+            </table>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

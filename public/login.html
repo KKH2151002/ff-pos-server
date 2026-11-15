@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FF POS - 매장 로그인 및 회원가입</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+            background: linear-gradient(135deg, #142850 0%, #0066cc 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        .auth-card {
+            background: white;
+            width: 100%;
+            max-width: 420px;
+            border-radius: 16px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+        }
+        .auth-header {
+            background: #f8f9fa;
+            padding: 28px 24px 20px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+        .auth-header .logo {
+            font-size: 2.2rem;
+            margin-bottom: 6px;
+        }
+        .auth-header h1 {
+            margin: 0;
+            font-size: 1.4rem;
+            color: #142850;
+        }
+        .auth-header p {
+            margin: 6px 0 0;
+            font-size: 0.88rem;
+            color: #666;
+        }
+        .security-badge {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 4px 10px;
+            background: #e6f4ea;
+            color: #1e7e34;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: bold;
+        }
+        .tab-bar {
+            display: flex;
+            background: #f1f3f5;
+            padding: 6px;
+            margin: 20px 24px 0;
+            border-radius: 10px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            font-size: 0.95rem;
+            font-weight: bold;
+            color: #666;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .tab-btn.active {
+            background: white;
+            color: #0066cc;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }
+        .auth-body {
+            padding: 24px;
+        }
+        .form-section {
+            display: none;
+        }
+        .form-section.active {
+            display: block;
+        }
+        .input-group {
+            margin-bottom: 16px;
+        }
+        .input-group label {
+            display: block;
+            font-size: 0.88rem;
+            font-weight: bold;
+            color: #444;
+            margin-bottom: 6px;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #ccd2d8;
+            border-radius: 8px;
+            font-size: 0.98rem;
+            transition: border-color 0.2s;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #0066cc;
+            box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.12);
+        }
+        /* 브라우저 기본 비밀번호 저장/유출 경고 팝업이 가로채지 않도록 텍스트 보안 마스킹 적용 */
+        .masked-pw {
+            -webkit-text-security: disc;
+            text-security: disc;
+        }
+        .submit-btn {
+            width: 100%;
+            padding: 14px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.05rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 6px;
+            transition: background 0.2s;
+        }
+        .submit-btn:hover {
+            background: #0052a3;
+        }
+        .submit-btn.signup {
+            background: #28a745;
+        }
+        .submit-btn.signup:hover {
+            background: #218838;
+        }
+        .msg-box {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            font-weight: bold;
+            text-align: center;
+            display: none;
+        }
+        .msg-box.error {
+            display: block;
+            background: #fce8e6;
+            color: #c5221f;
+        }
+        .msg-box.success {
+            display: block;
+            background: #e6f4ea;
+            color: #1e7e34;
+        }
+        .pw-hint {
+            font-size: 0.8rem;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="logo">🏪</div>
+            <h1>FF POS 스마트 관리 시스템</h1>
+            <p>매장 계정으로 로그인하여 재고 및 발주를 관리하세요</p>
+            <div class="security-badge">🔒 SHA-256 + Salt 단방향 암호화 보안 적용</div>
+        </div>
+
+        <div class="tab-bar">
+            <button id="tabLogin" class="tab-btn active" onclick="switchTab('login')">🔑 매장 로그인</button>
+            <button id="tabSignup" class="tab-btn" onclick="switchTab('signup')">📝 매장 회원가입</button>
+        </div>
+
+        <div class="auth-body">
+            <!-- 로그인 영역 (<form> 대신 <div> 컨테이너를 사용하여 크롬 비밀번호 관리자 경고 팝업 차단) -->
+            <div id="loginForm" class="form-section active">
+                <div class="input-group">
+                    <label for="loginUsername">아이디</label>
+                    <input type="text" id="loginUsername" placeholder="아이디를 입력하세요" autocomplete="off" onkeydown="if(event.key==='Enter') handleLogin()">
+                </div>
+                <div class="input-group">
+                    <label for="loginPassword">비밀번호</label>
+                    <input type="text" id="loginPassword" class="masked-pw" placeholder="비밀번호를 입력하세요" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter') handleLogin()">
+                </div>
+                <button type="button" class="submit-btn" onclick="handleLogin()">로그인</button>
+                <div id="loginMsg" class="msg-box"></div>
+            </div>
+
+            <!-- 회원가입 영역 -->
+            <div id="signupForm" class="form-section">
+                <div class="input-group">
+                    <label for="regUsername">아이디</label>
+                    <input type="text" id="regUsername" placeholder="사용할 아이디 입력 (예: store01)" autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <label for="regPassword">비밀번호</label>
+                    <input type="text" id="regPassword" class="masked-pw" placeholder="비밀번호 입력" oninput="checkPasswordMatch()" autocomplete="off" spellcheck="false">
+                    <div id="pwStrengthHint" class="pw-hint"></div>
+                </div>
+                <div class="input-group">
+                    <label for="regPasswordConfirm">비밀번호 확인</label>
+                    <input type="text" id="regPasswordConfirm" class="masked-pw" placeholder="비밀번호 다시 입력" oninput="checkPasswordMatch()" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter') handleSignup()">
+                    <div id="pwMatchHint" class="pw-hint"></div>
+                </div>
+                <div class="input-group">
+                    <label for="regStoreName">매장이름</label>
+                    <input type="text" id="regStoreName" placeholder="매장이름 입력 (예: 안산대점)" autocomplete="off" onkeydown="if(event.key==='Enter') handleSignup()">
+                </div>
+                <button type="button" class="submit-btn signup" onclick="handleSignup()">매장 회원가입 완료</button>
+                <div id="signupMsg" class="msg-box"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 이미 로그인된 경우 메인페이지로 이동
+        if (localStorage.getItem('ff_pos_store')) {
+            window.location.href = '/';
+        }
+
+        function switchTab(tab) {
+            document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
+            document.getElementById('tabSignup').classList.toggle('active', tab === 'signup');
+            document.getElementById('loginForm').classList.toggle('active', tab === 'login');
+            document.getElementById('signupForm').classList.toggle('active', tab === 'signup');
+            document.getElementById('loginMsg').className = 'msg-box';
+            document.getElementById('signupMsg').className = 'msg-box';
+        }
+
+        function checkPasswordMatch() {
+            const pw = document.getElementById('regPassword').value;
+            const pwConfirm = document.getElementById('regPasswordConfirm').value;
+            const strengthHint = document.getElementById('pwStrengthHint');
+            const hint = document.getElementById('pwMatchHint');
+
+            if (!pw) {
+                strengthHint.innerText = '';
+            } else if (pw.length >= 8 && /[0-9]/.test(pw) && /[a-zA-Z]/.test(pw)) {
+                strengthHint.innerText = '🛡️ 보안 강도: 높음 (서버 저장 시 Salt + Scrypt 암호화됨)';
+                strengthHint.style.color = '#1e7e34';
+            } else {
+                strengthHint.innerText = '🔒 서버 전송 후 Salt + Scrypt 단방향 해시로 안전하게 암호화됩니다.';
+                strengthHint.style.color = '#0066cc';
+            }
+
+            if (!pwConfirm) {
+                hint.innerText = '';
+                return;
+            }
+            if (pw === pwConfirm) {
+                hint.innerText = '✅ 비밀번호가 일치합니다.';
+                hint.style.color = '#1e7e34';
+            } else {
+                hint.innerText = '❌ 비밀번호가 일치하지 않습니다.';
+                hint.style.color = '#c5221f';
+            }
+        }
+
+        function handleSignup() {
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const passwordConfirm = document.getElementById('regPasswordConfirm').value;
+            const storeName = document.getElementById('regStoreName').value.trim();
+            const msgBox = document.getElementById('signupMsg');
+
+            if (!username || !password || !passwordConfirm || !storeName) {
+                msgBox.className = 'msg-box error';
+                msgBox.innerText = '❌ 모든 칸을 입력해주세요.';
+                return;
+            }
+
+            if (password !== passwordConfirm) {
+                msgBox.className = 'msg-box error';
+                msgBox.innerText = '❌ 비밀번호와 비밀번호 확인이 일치하지 않습니다.';
+                return;
+            }
+
+            fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, passwordConfirm, storeName })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    msgBox.className = 'msg-box error';
+                    msgBox.innerText = '❌ ' + data.message;
+                    return;
+                }
+                msgBox.className = 'msg-box success';
+                msgBox.innerText = '🎉 암호화 회원가입 완료! 로그인 탭으로 이동합니다...';
+                setTimeout(() => {
+                    document.getElementById('loginUsername').value = username;
+                    document.getElementById('loginPassword').value = '';
+                    switchTab('login');
+                }, 900);
+            })
+            .catch(() => {
+                msgBox.className = 'msg-box error';
+                msgBox.innerText = '❌ 서버 통신 중 오류가 발생했습니다.';
+            });
+        }
+
+        function handleLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const msgBox = document.getElementById('loginMsg');
+
+            if (!username || !password) {
+                msgBox.className = 'msg-box error';
+                msgBox.innerText = '❌ 아이디와 비밀번호를 입력해주세요.';
+                return;
+            }
+
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    msgBox.className = 'msg-box error';
+                    msgBox.innerText = '❌ ' + data.message;
+                    return;
+                }
+                localStorage.setItem('ff_pos_store', JSON.stringify(data.user));
+                window.location.href = '/';
+            })
+            .catch(() => {
+                msgBox.className = 'msg-box error';
+                msgBox.innerText = '❌ 서버 통신 중 오류가 발생했습니다.';
+            });
+        }
+    </script>
+</body>
+</html>

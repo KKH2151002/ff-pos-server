@@ -600,6 +600,7 @@ function verifyPassword(password, storedPassword) {
     return crypto.timingSafeEqual(keyBuffer, derivedKey);
 }
 
+const fs = require('fs');
 const createStoresTableSql = `
     CREATE TABLE IF NOT EXISTS stores (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -611,7 +612,18 @@ const createStoresTableSql = `
 `;
 db.query(createStoresTableSql, (err) => {
     if (err) console.error('stores 테이블 생성 확인 중 오류:', err.message);
-    else console.log('stores (매장 회원) 테이블 준비 완료 ✅');
+    else {
+        console.log('stores (매장 회원) 테이블 준비 완료 ✅');
+        // 기존 가입된 계정 DB 초기화 (최초 1회 자동 실행)
+        if (!fs.existsSync('.stores_wiped')) {
+            db.query('TRUNCATE TABLE stores', (err2) => {
+                if (!err2) {
+                    fs.writeFileSync('.stores_wiped', 'wiped');
+                    console.log('기존 회원가입 계정 DB(stores) 초기화 완료 🗑️');
+                }
+            });
+        }
+    }
 });
 
 // [회원가입 API] 아이디, 비밀번호(Salt+Scrypt 단방향 해시 암호화), 비밀번호 확인, 매장이름
@@ -625,22 +637,19 @@ app.post('/api/auth/register', (req, res) => {
         return res.status(400).json({ success: false, message: '비밀번호와 비밀번호 확인이 일치하지 않습니다.' });
     }
 
-    const checkSql = `SELECT id FROM stores WHERE username = ?`;
-    db.query(checkSql, [username], (err, rows) => {
-        if (err) return res.status(500).json({ success: false, message: 'DB 조회 오류가 발생했습니다.' });
-        if (rows.length > 0) {
-            return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다.' });
-        }
-
-        const encryptedPassword = hashPassword(password);
-        const insertSql = `INSERT INTO stores (username, password, store_name) VALUES (?, ?, ?)`;
-        db.query(insertSql, [username, encryptedPassword, storeName], (err2) => {
-            if (err2) return res.status(500).json({ success: false, message: '회원가입 저장 중 오류가 발생했습니다.' });
-            res.json({
-                success: true,
-                message: '매장 회원가입이 완료되었습니다!',
-                user: { username, storeName }
-            });
+    const encryptedPassword = hashPassword(password);
+    // 새로 가입하거나, 시연 영상 재촬영 시 동일 아이디로 다시 가입해도 덮어써서 새로 가입되도록 처리
+    const insertSql = `
+        INSERT INTO stores (username, password, store_name) 
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE password = VALUES(password), store_name = VALUES(store_name), created_at = CURRENT_TIMESTAMP
+    `;
+    db.query(insertSql, [username, encryptedPassword, storeName], (err2) => {
+        if (err2) return res.status(500).json({ success: false, message: '회원가입 저장 중 오류가 발생했습니다.' });
+        res.json({
+            success: true,
+            message: '매장 회원가입이 완료되었습니다!',
+            user: { username, storeName }
         });
     });
 });

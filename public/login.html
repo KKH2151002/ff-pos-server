@@ -161,6 +161,64 @@
             font-size: 0.8rem;
             margin-top: 5px;
         }
+        /* 회원가입 완료 모달 팝업창 스타일 */
+        .popup-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.55);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        .popup-overlay.active {
+            display: flex;
+        }
+        .popup-box {
+            background: white;
+            width: 90%;
+            max-width: 360px;
+            border-radius: 16px;
+            padding: 28px 24px 22px;
+            text-align: center;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+            animation: popIn 0.2s ease-out;
+        }
+        @keyframes popIn {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .popup-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+        .popup-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #142850;
+            margin-bottom: 8px;
+        }
+        .popup-desc {
+            font-size: 0.95rem;
+            color: #555;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+        .popup-btn {
+            width: 100%;
+            padding: 12px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .popup-btn:hover {
+            background: #0052a3;
+        }
     </style>
 </head>
 <body>
@@ -215,6 +273,16 @@
                 <button type="button" class="submit-btn signup" onclick="handleSignup()">매장 회원가입 완료</button>
                 <div id="signupMsg" class="msg-box"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- 회원가입 완료 모달 팝업창 -->
+    <div id="signupPopup" class="popup-overlay">
+        <div class="popup-box">
+            <div class="popup-icon">🎉</div>
+            <div class="popup-title">회원가입 완료!</div>
+            <div id="signupPopupDesc" class="popup-desc">매장 계정 등록이 완료되었습니다.<br>로그인 화면으로 이동합니다.</div>
+            <button type="button" id="signupPopupBtn" class="popup-btn" onclick="closeSignupPopup()">확인</button>
         </div>
     </div>
 
@@ -293,18 +361,29 @@
                     msgBox.innerText = '❌ ' + data.message;
                     return;
                 }
-                msgBox.className = 'msg-box success';
-                msgBox.innerText = '🎉 암호화 회원가입 완료! 로그인 탭으로 이동합니다...';
-                setTimeout(() => {
-                    document.getElementById('loginUsername').value = username;
-                    document.getElementById('loginPassword').value = '';
-                    switchTab('login');
-                }, 900);
+                msgBox.className = 'msg-box';
+                window.lastRegisteredUser = username;
+                document.getElementById('signupPopupDesc').innerHTML = `<b>[${storeName}]</b> 매장 회원가입이 완료되었습니다!<br>확인을 누르면 로그인 화면으로 이동합니다.`;
+                document.getElementById('signupPopup').classList.add('active');
+                document.getElementById('signupPopupBtn').focus();
             })
             .catch(() => {
                 msgBox.className = 'msg-box error';
                 msgBox.innerText = '❌ 서버 통신 중 오류가 발생했습니다.';
             });
+        }
+
+        function closeSignupPopup() {
+            document.getElementById('signupPopup').classList.remove('active');
+            document.getElementById('loginUsername').value = window.lastRegisteredUser || '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('regUsername').value = '';
+            document.getElementById('regPassword').value = '';
+            document.getElementById('regPasswordConfirm').value = '';
+            document.getElementById('regStoreName').value = '';
+            document.getElementById('pwStrengthHint').innerText = '';
+            document.getElementById('pwMatchHint').innerText = '';
+            switchTab('login');
         }
 
         function handleLogin() {

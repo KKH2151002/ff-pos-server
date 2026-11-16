@@ -496,7 +496,7 @@ app.get('/api/logs', (req, res) => {
 // 2026-01 ~ 2026-10 시계열 데이터 자동 시딩 보장 헬퍼
 let seedingPromise = null;
 function ensure2026DataSeeded(callback) {
-    db.query("SELECT COUNT(*) as cnt FROM inventory WHERE created_at >= '2026-01-01 00:00:00' AND created_at <= '2026-01-31 23:59:59'", (err, rows) => {
+    db.query("SELECT COUNT(*) as cnt FROM inventory WHERE item_name = '혜자로운 도시락' AND status IN ('sold', 'expired')", (err, rows) => {
         if (!err && rows && rows[0].cnt === 0) {
             if (!seedingPromise) {
                 console.log('2026-01 ~ 2026-10 시계열 더미 데이터 자동 적재를 시작합니다...');
@@ -507,7 +507,8 @@ function ensure2026DataSeeded(callback) {
             }
             seedingPromise.then(() => callback());
         } else {
-            callback();
+            const addNewProducts = require('./add_new_products.js');
+            addNewProducts().catch(() => {}).finally(() => callback());
         }
     });
 }
@@ -691,5 +692,7 @@ app.post('/api/auth/login', (req, res) => {
         });
     });
 });
+
+
 
 

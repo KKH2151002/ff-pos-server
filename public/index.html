@@ -20,7 +20,8 @@
         .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 1000; }
         .overlay.active { display: block; }
         .container { padding: 20px; max-width: 600px; margin: auto; }
-        #reader { width: 100%; border-radius: 12px; overflow: hidden; border: 2px solid #007bff; margin-bottom: 20px; display: none; background: black; }
+        #reader { width: 100%; height: 180px; max-height: 180px; border-radius: 12px; overflow: hidden; border: 2px solid #007bff; margin-bottom: 12px; display: none; background: black; }
+        #reader video { width: 100% !important; height: 180px !important; object-fit: cover !important; }
         .page-section { display: none; }
         .page-section.active { display: block; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
@@ -34,7 +35,7 @@
 <body>
     <header style="justify-content: space-between;">
         <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
-        <div style="display:flex; align-items:center;"><div style="margin-left:10px; font-weight:bold;">🏪 FF POS 관리</div><span id="headerStoreBadge" style="margin-left:10px; background:#e7f1ff; color:#0066cc; padding:5px 12px; border-radius:20px; font-weight:bold; font-size:0.9rem; border:1px solid #b6d4fe;">📍 매장 확인 중...</span></div><button onclick="logoutStore()" style="margin-left:auto; background:#f1f3f5; color:#555; border:1px solid #ddd; padding:6px 12px; border-radius:8px; font-size:0.85rem; font-weight:bold; cursor:pointer;">로그아웃</button>
+        <div style="display:flex; align-items:center;"><div style="margin-left:10px; font-weight:bold;">🏪 FF POS 관리</div><span id="headerStoreBadge" style="margin-left:10px; background:#e7f1ff; color:#0066cc; padding:5px 12px; border-radius:20px; font-weight:bold; font-size:0.9rem; border:1px solid #b6d4fe;">📍 매장 확인 중...</span></div><div style="margin-left:auto; display:flex; align-items:center; gap:8px;"><button id="notiBtn" onclick="toggleNotifications()" style="background:#6c757d; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:0.85rem; font-weight:bold; cursor:pointer; transition:0.2s;">🔕 알림 꺼짐</button><button onclick="logoutStore()" style="background:#f1f3f5; color:#555; border:1px solid #ddd; padding:6px 12px; border-radius:8px; font-size:0.85rem; font-weight:bold; cursor:pointer;">로그아웃</button></div>
     </header>
 
     <div id="sidebar" class="sidebar">

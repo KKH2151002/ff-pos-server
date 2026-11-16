@@ -71,8 +71,8 @@ window.setMode = function(mode) {
     const container = document.querySelector('.container');
     if (container) {
         if (mode === 'alert' || mode === 'analysis') {
-            container.style.maxWidth = '1200px';
-            container.style.width = '95%';
+            container.style.maxWidth = '1360px';
+            container.style.width = '96%';
         } else {
             container.style.maxWidth = '600px';
         }
@@ -139,10 +139,11 @@ function checkExpiredAlerts() {
             </div>
         `;
 
-        // [4주차] 카테고리별 그리드(Grid) 렌더링 로직 추가
+        // [4주차] 카테고리별 그리드(Grid) 렌더링 로직 추가 (도시락 카테고리 추가: 총 5단 그리드)
         const categories = {
             "일반김밥": [],
             "삼각김밥": [],
+            "도시락": [],
             "햄버거": [],
             "샌드위치": []
         };
@@ -159,16 +160,18 @@ function checkExpiredAlerts() {
             }
 
             const imageDatabase = {
-                "아이돌유닛샌드위치": "/img/sandwich.jpg", "아이돌인기샌드위치": "/img/sandwich.jpg",
-                "불고기버거(2편)": "/img/burger.jpg", "매콤불고기버거": "/img/burger.jpg", "숯불갈비버거": "/img/burger.jpg", "비프토마토버거": "/img/burger.jpg",
+                "아이돌유닛샌드위치": "/img/sandwich.jpg", "아이돌인기샌드위치": "/img/sandwich.jpg", "화이트햄에그마요샌드위치": "/img/sandwich.jpg",
+                "불고기버거(2편)": "/img/burger.jpg", "매콤불고기버거": "/img/burger.jpg", "숯불갈비버거": "/img/burger.jpg", "비프토마토버거": "/img/burger.jpg", "빅&더블스테이크버거(1편)": "/img/burger.jpg",
+                "이달의도시락 1편": "/img/dosirak.jpg", "혜자로운 도시락": "/img/dosirak.jpg",
                 "종가)김치참치김밥": "/img/gimbap.jpg", "묵은지참치김밥": "/img/gimbap.jpg",
                 "더큰참치마요 B": "/img/triangle.jpg", "더큰참치마요 A": "/img/triangle.jpg", "최강록)날치알명란&계란": "/img/triangle.jpg", "흑백)서울엄마콩불": "/img/triangle.jpg", "더큰)불닭콘치즈": "/img/triangle.jpg", "스팸콘치즈김치볶음밥": "/img/triangle.jpg"
             };
 
             const imageUrl = imageDatabase[i.item_name] || "https://dummyimage.com/150x150/cccccc/000000&text=No+Image";
             
-            let catName = "기타";
-            if(imageUrl.includes('gimbap')) catName = "일반김밥";
+            let catName = "일반김밥";
+            if(imageUrl.includes('dosirak') || i.item_name.includes('도시락')) catName = "도시락";
+            else if(imageUrl.includes('gimbap')) catName = "일반김밥";
             else if(imageUrl.includes('triangle')) catName = "삼각김밥";
             else if(imageUrl.includes('burger')) catName = "햄버거";
             else if(imageUrl.includes('sandwich')) catName = "샌드위치";
@@ -194,7 +197,7 @@ function checkExpiredAlerts() {
         });
 
         const gridHtml = `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; width: 100%;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 15px; width: 100%;">
                 ${Object.keys(categories).map(cat => `
                     <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6;">
                         <h3 style="text-align: center; border-bottom: 2px solid #343a40; padding-bottom: 8px; margin-top:0; font-size: 1.1rem; color: #343a40;">${cat}</h3>
@@ -908,3 +911,139 @@ window.updateMonthlyAnalysis = function(monthStr) {
         renderCharts(labels, soldData, expiredData, revenueData);
     });
 };
+
+
+// ==========================================
+// [단일 토글 버튼 알림 켜기/끄기 및 화면 내 알람 배너 연동]
+// ==========================================
+window.toggleNotifications = function() {
+    if (isNotificationEnabled) {
+        stopBackgroundMonitoring();
+    } else {
+        if ("Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission().finally(() => {
+                startBackgroundMonitoring();
+            });
+        } else {
+            startBackgroundMonitoring();
+        }
+    }
+};
+
+function showInPageAlarmBanner(title, bodyText, borderColor) {
+    let container = document.getElementById('inPageAlarmContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'inPageAlarmContainer';
+        container.style.cssText = "position:fixed; top:70px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:10px; max-width:340px; width:90%;";
+        document.body.appendChild(container);
+    }
+    const card = document.createElement('div');
+    card.style.cssText = `background:white; border-left:6px solid ${borderColor || '#dc3545'}; border-radius:10px; padding:14px 16px; box-shadow:0 8px 24px rgba(0,0,0,0.18); transition:0.3s; cursor:pointer;`;
+    card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <strong style="font-size:0.95rem; color:#222;">${title}</strong>
+            <span style="font-size:0.8rem; color:#888;">방금 전 ✕</span>
+        </div>
+        <div style="font-size:0.86rem; color:#555; line-height:1.4;">${bodyText}</div>
+    `;
+    card.onclick = () => card.remove();
+    container.prepend(card);
+    setTimeout(() => {
+        if (card.parentNode) {
+            card.style.opacity = '0';
+            setTimeout(() => card.remove(), 300);
+        }
+    }, 5500);
+}
+
+function startBackgroundMonitoring() {
+    isNotificationEnabled = true;
+    notifiedItems.clear();
+    
+    const btn = document.getElementById('notiBtn');
+    if (btn) {
+        btn.innerText = "🔔 알림 작동 중";
+        btn.style.background = "#28a745";
+    }
+
+    alertSound.play().catch(e => console.log("오디오 재생 오류:", e));
+    if ("Notification" in window && Notification.permission === "granted") {
+        new Notification("FF POS 알림", { body: "실시간 폐기 모니터링이 시작되었습니다!" });
+    }
+    showInPageAlarmBanner("🔔 FF POS 실시간 알림 켜짐", "유통기한 임박 상품 모니터링이 시작되었습니다.", "#28a745");
+
+    if (pollingInterval) clearInterval(pollingInterval);
+    pollingInterval = setInterval(pollAlerts, 60000);
+    pollAlerts();
+}
+
+function stopBackgroundMonitoring() {
+    isNotificationEnabled = false;
+    notifiedItems.clear();
+    
+    const btn = document.getElementById('notiBtn');
+    if (btn) {
+        btn.innerText = "🔕 알림 꺼짐";
+        btn.style.background = "#6c757d";
+    }
+    const container = document.getElementById('inPageAlarmContainer');
+    if (container) container.innerHTML = '';
+    showToast("🔕 실시간 폐기 알림이 꺼졌습니다.");
+    
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+    }
+}
+
+function pollAlerts() {
+    fetch('/api/alerts')
+        .then(res => res.json())
+        .then(data => {
+            if (data.length === 0) return;
+
+            let shownCount = 0;
+            data.forEach(item => {
+                if (item.minutes_left <= 180 && item.minutes_left >= -180) {
+                    let currentStage = 3;
+                    if (item.minutes_left > 30) currentStage = 1;
+                    else if (item.minutes_left > 10) currentStage = 2;
+
+                    const lastNotifiedStage = notifiedItems.get(item.id) || 0;
+                    if (currentStage > lastNotifiedStage) {
+                        notifiedItems.set(item.id, currentStage);
+                        if (shownCount < 3) {
+                            sendPushNotification(item.item_name, item.minutes_left, currentStage);
+                            shownCount++;
+                        }
+                    }
+                }
+            });
+        })
+        .catch(err => console.error("백그라운드 알림 폴링 에러:", err));
+}
+
+function sendPushNotification(itemName, minutesLeft, stage) {
+    alertSound.play().catch(e => console.log("백그라운드 오디오 재생 오류:", e));
+
+    let title = "🚨 폐기 임박 경고!";
+    let borderColor = "#dc3545";
+    if (stage === 1) { title = "🟡 폐기 관심 (임박)"; borderColor = "#ffc107"; }
+    else if (stage === 2) { title = "🟠 폐기 주의 (30분 미만)"; borderColor = "#fd7e14"; }
+    else if (stage === 3) { title = "🚨 골든타임! (10분 미만)"; borderColor = "#dc3545"; }
+
+    const bodyMsg = minutesLeft < 0 
+        ? `[${itemName}] 유통기한이 ${Math.abs(minutesLeft)}분 경과했습니다! 즉시 수거하세요!`
+        : `[${itemName}] 상품의 유통기한이 ${minutesLeft}분 남았습니다. 즉시 확인해주세요!`;
+
+    showInPageAlarmBanner(title, bodyMsg, borderColor);
+
+    if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(title, {
+            body: bodyMsg,
+            icon: "icon.png",
+            vibrate: [200, 100, 200, 100, 200]
+        });
+    }
+}

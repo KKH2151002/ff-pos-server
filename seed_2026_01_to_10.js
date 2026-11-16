@@ -1,18 +1,24 @@
 const mysql = require('mysql2/promise');
+const addNewProducts = require('./add_new_products.js');
 
-async function seedJanToOct2026() {
+async function seedFullYearWithNewProducts() {
+    // 1. 먼저 신규 4종 상품이 products_master와 orders에 등록되어 있도록 보장
+    await addNewProducts();
+
     const db = await mysql.createConnection({
         host: 'infodb.ansan.ac.kr',
         user: 'i2151002',
         password: 'khwjstk2@',
+        port: 3306,
         database: 'db2151002_capstone'
     });
 
-    console.log('Connected to db2151002_capstone (2026-01 ~ 2026-10 데이터 적재 시작)');
+    console.log('Connected to db2151002_capstone (신규 4종 포함 2025-10 ~ 2026-10 전체 통계 데이터 적재 시작)');
 
-    // 기존 2026년 1월 ~ 10월 더미 데이터 초기화 (단, 2026-10-08 발표용 10시 20분 테스트 데이터가 있다면 덮어쓰고 깔끔한 월간 통계 구성)
-    await db.execute("DELETE FROM disposal_logs WHERE disposed_at >= '2026-01-01 00:00:00' AND disposed_at <= '2026-10-31 23:59:59'");
-    await db.execute("DELETE FROM inventory WHERE created_at >= '2026-01-01 00:00:00' AND created_at <= '2026-10-31 23:59:59'");
+    // 2025-10 ~ 2026-10 기간의 기존 통계 데이터를 지우고 신규 4종 상품이 포함된 1년치 데이터로 재구성
+    // (현재 실시간 폐기 시연용으로 오늘 날짜에 넣은 selling 재고가 있다면 보존하기 위해 status IN ('sold', 'expired') 조건 또는 해당 기간 정리)
+    await db.execute("DELETE FROM disposal_logs WHERE disposed_at >= '2025-10-01 00:00:00' AND disposed_at <= '2026-10-31 23:59:59'");
+    await db.execute("DELETE FROM inventory WHERE created_at >= '2025-10-01 00:00:00' AND created_at <= '2026-10-31 23:59:59' AND status IN ('sold', 'expired')");
 
     function randInt(min, max) {
         return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -28,305 +34,449 @@ async function seedJanToOct2026() {
         return arr[arr.length - 1];
     }
 
-    // 2026년 1월 ~ 10월 (10개월치) 계절별 인기/비인기 및 월간 목표 매출(80만원~120만원 사이) 설정
+    // 2025-10 ~ 2026-10 (13개월) 설정
+    // 모든 달에 신규 4종(빅&더블스테이크버거(1편), 화이트햄에그마요샌드위치, 이달의도시락 1편, 혜자로운 도시락) 포함!
+    // 월 매출액이 모든 달에서 80만원 ~ 120만원 사이(83만 ~ 117만원)에 완벽히 들어오도록 구성
     const monthsConfig = [
         {
-            // 2026-01 (한겨울 혹한기 & 동계방학): 온장/매콤 렌지업 초강세, 차가운 샌드위치/날치알 비수기
-            year: 2026, month: 1, days: 31,
-            minRev: 910000, maxRev: 980000,
-            dailyCounts: { triangle: [8, 10], sandwich: [1, 3], gimbap: [2, 3], burger: [3, 4] },
+            // 2025-10 (가을 기준월)
+            year: 2025, month: 10, days: 31,
+            minRev: 890000, maxRev: 960000,
+            dailyCounts: { triangle: [7, 9], sandwich: [2, 3], gimbap: [2, 3], burger: [2, 3] },
             categories: {
                 triangle: [
-                    { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 3.2, sellProb: 0.91 },
-                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.8, sellProb: 0.87 },
-                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.5, sellProb: 0.86 },
-                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.0, sellProb: 0.76 },
-                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 1.0, sellProb: 0.68 },
-                    { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 0.7, sellProb: 0.45 }
+                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 1.5, sellProb: 0.90 },
+                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 1.5, sellProb: 0.88 },
+                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 1.4, sellProb: 0.85 },
+                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 1.4, sellProb: 0.84 },
+                    { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 1.2, sellProb: 0.54 },
+                    { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 1.2, sellProb: 0.45 }
                 ],
                 sandwich: [
-                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 1.4, sellProb: 0.58 },
+                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 1.5, sellProb: 0.85 },
+                    { id: '27000388870832', name: '화이트햄에그마요샌드위치', price: 3200, orderWeight: 1.4, sellProb: 0.82 },
+                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 1.2, sellProb: 0.52 }
+                ],
+                gimbap: [
+                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 1.5, sellProb: 0.84 },
+                    { id: '27000388862392', name: '혜자로운 도시락', price: 5000, orderWeight: 1.2, sellProb: 0.86 },
+                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 1.3, sellProb: 0.55 },
+                    { id: '27000388872052', name: '이달의도시락 1편', price: 5200, orderWeight: 1.0, sellProb: 0.52 }
+                ],
+                burger: [
+                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 1.4, sellProb: 0.86 },
+                    { id: '27000388852942', name: '빅&더블스테이크버거(1편)', price: 4200, orderWeight: 1.3, sellProb: 0.82 },
+                    { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 1.2, sellProb: 0.72 },
+                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 1.2, sellProb: 0.56 },
+                    { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 1.0, sellProb: 0.38 }
+                ]
+            }
+        },
+        {
+            // 2025-11 (1차 발주개편 + 초겨울 진입): 온장 도시락(혜자로운 도시락), 스테이크버거, 불고기버거 강세!
+            year: 2025, month: 11, days: 30,
+            minRev: 1040000, maxRev: 1120000,
+            dailyCounts: { triangle: [8, 9], sandwich: [2, 3], gimbap: [2, 3], burger: [2, 3] },
+            categories: {
+                triangle: [
+                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.8, sellProb: 0.93 },
+                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.6, sellProb: 0.88 },
+                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.4, sellProb: 0.90 },
+                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 2.0, sellProb: 0.85 },
+                    { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 0.8, sellProb: 0.86 },
+                    { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 0.6, sellProb: 0.48 }
+                ],
+                sandwich: [
+                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 2.2, sellProb: 0.68 },
+                    { id: '27000388870832', name: '화이트햄에그마요샌드위치', price: 3200, orderWeight: 2.0, sellProb: 0.65 },
+                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 0.7, sellProb: 0.42 }
+                ],
+                gimbap: [
+                    { id: '27000388862392', name: '혜자로운 도시락', price: 5000, orderWeight: 2.2, sellProb: 0.91 },
+                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.2, sellProb: 0.82 },
+                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 0.9, sellProb: 0.84 },
+                    { id: '27000388872052', name: '이달의도시락 1편', price: 5200, orderWeight: 0.7, sellProb: 0.76 }
+                ],
+                burger: [
+                    { id: '27000388852942', name: '빅&더블스테이크버거(1편)', price: 4200, orderWeight: 2.4, sellProb: 0.90 },
+                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 2.4, sellProb: 0.91 },
+                    { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 1.6, sellProb: 0.86 },
+                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 0.9, sellProb: 0.85 },
+                    { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 0.5, sellProb: 0.35 }
+                ]
+            }
+        },
+        {
+            // 2025-12 (한겨울 한파 & 종강/방학): 따뜻한 도시락(혜자로운/이달의도시락), 스테이크버거, 매콤불고기, 서울엄마콩불 강세! 샌드위치 비수기
+            year: 2025, month: 12, days: 31,
+            minRev: 880000, maxRev: 950000,
+            dailyCounts: { triangle: [7, 9], sandwich: [1, 3], gimbap: [2, 3], burger: [2, 3] },
+            categories: {
+                triangle: [
+                    { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 2.6, sellProb: 0.91 },
+                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.6, sellProb: 0.85 },
+                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.2, sellProb: 0.80 },
+                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.2, sellProb: 0.68 },
+                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 1.8, sellProb: 0.52 },
+                    { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 1.0, sellProb: 0.45 }
+                ],
+                sandwich: [
+                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 1.8, sellProb: 0.55 },
+                    { id: '27000388870832', name: '화이트햄에그마요샌드위치', price: 3200, orderWeight: 1.6, sellProb: 0.50 },
                     { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 0.6, sellProb: 0.42 }
                 ],
                 gimbap: [
-                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 3.0, sellProb: 0.90 },
-                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 1.8, sellProb: 0.74 }
+                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 2.2, sellProb: 0.90 },
+                    { id: '27000388862392', name: '혜자로운 도시락', price: 5000, orderWeight: 1.8, sellProb: 0.88 },
+                    { id: '27000388872052', name: '이달의도시락 1편', price: 5200, orderWeight: 1.4, sellProb: 0.82 },
+                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 1.8, sellProb: 0.72 }
                 ],
                 burger: [
-                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 3.0, sellProb: 0.89 },
-                    { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 2.8, sellProb: 0.86 },
+                    { id: '27000388852942', name: '빅&더블스테이크버거(1편)', price: 4200, orderWeight: 2.2, sellProb: 0.88 },
+                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 2.2, sellProb: 0.86 },
+                    { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 2.0, sellProb: 0.83 },
                     { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 2.0, sellProb: 0.76 },
+                    { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 0.4, sellProb: 0.33 }
+                ]
+            }
+        },
+        {
+            // 2026-01 (혹한기 & 동계방학): 온장 도시락(혜자로운/이달의도시락), 빅&더블스테이크버거, 서울엄마콩불 주력!
+            year: 2026, month: 1, days: 31,
+            minRev: 920000, maxRev: 990000,
+            dailyCounts: { triangle: [7, 9], sandwich: [1, 2], gimbap: [2, 3], burger: [2, 3] },
+            categories: {
+                triangle: [
+                    { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 3.0, sellProb: 0.91 },
+                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.6, sellProb: 0.87 },
+                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.4, sellProb: 0.85 },
+                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 1.8, sellProb: 0.76 },
+                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 1.0, sellProb: 0.68 },
+                    { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 0.6, sellProb: 0.45 }
+                ],
+                sandwich: [
+                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 1.2, sellProb: 0.58 },
+                    { id: '27000388870832', name: '화이트햄에그마요샌드위치', price: 3200, orderWeight: 1.0, sellProb: 0.54 },
+                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 0.5, sellProb: 0.42 }
+                ],
+                gimbap: [
+                    { id: '27000388862392', name: '혜자로운 도시락', price: 5000, orderWeight: 2.2, sellProb: 0.90 },
+                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 2.6, sellProb: 0.89 },
+                    { id: '27000388872052', name: '이달의도시락 1편', price: 5200, orderWeight: 1.6, sellProb: 0.85 },
+                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 1.6, sellProb: 0.74 }
+                ],
+                burger: [
+                    { id: '27000388852942', name: '빅&더블스테이크버거(1편)', price: 4200, orderWeight: 2.6, sellProb: 0.90 },
+                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 2.6, sellProb: 0.88 },
+                    { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 2.2, sellProb: 0.85 },
+                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 1.8, sellProb: 0.76 },
                     { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 0.4, sellProb: 0.35 }
                 ]
             }
         },
         {
-            // 2026-02 (늦겨울~초봄 해빙기, 28일): 겨울 헤비 메뉴 피로도 발생, 산뜻한 참치마요/명란/샌드위치 반등 시작
+            // 2026-02 (늦겨울~초봄 해빙기, 28일): 화이트햄에그마요샌드위치, 아이돌인기샌드위치, 날치알명란 반등 시작!
             year: 2026, month: 2, days: 28,
-            minRev: 830000, maxRev: 900000,
-            dailyCounts: { triangle: [8, 10], sandwich: [2, 3], gimbap: [2, 3], burger: [2, 4] },
+            minRev: 840000, maxRev: 910000,
+            dailyCounts: { triangle: [7, 9], sandwich: [2, 3], gimbap: [2, 3], burger: [2, 3] },
             categories: {
                 triangle: [
                     { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.4, sellProb: 0.90 },
                     { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 1.6, sellProb: 0.86 },
                     { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 1.2, sellProb: 0.88 },
-                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.6, sellProb: 0.78 },
-                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.6, sellProb: 0.72 },
-                    { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 3.0, sellProb: 0.60 }
+                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.2, sellProb: 0.78 },
+                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.2, sellProb: 0.72 },
+                    { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 2.6, sellProb: 0.60 }
                 ],
                 sandwich: [
-                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 1.8, sellProb: 0.88 },
+                    { id: '27000388870832', name: '화이트햄에그마요샌드위치', price: 3200, orderWeight: 1.6, sellProb: 0.90 },
+                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 1.6, sellProb: 0.88 },
                     { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 1.0, sellProb: 0.82 }
                 ],
                 gimbap: [
-                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.2, sellProb: 0.86 },
-                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 2.6, sellProb: 0.70 }
+                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.0, sellProb: 0.86 },
+                    { id: '27000388862392', name: '혜자로운 도시락', price: 5000, orderWeight: 1.8, sellProb: 0.82 },
+                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 2.2, sellProb: 0.70 },
+                    { id: '27000388872052', name: '이달의도시락 1편', price: 5200, orderWeight: 1.4, sellProb: 0.66 }
                 ],
                 burger: [
-                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 2.2, sellProb: 0.82 },
+                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 2.0, sellProb: 0.82 },
                     { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 1.0, sellProb: 0.85 },
-                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 2.6, sellProb: 0.65 },
-                    { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 2.4, sellProb: 0.60 }
+                    { id: '27000388852942', name: '빅&더블스테이크버거(1편)', price: 4200, orderWeight: 2.2, sellProb: 0.72 },
+                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 2.0, sellProb: 0.65 },
+                    { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 1.8, sellProb: 0.60 }
                 ]
             }
         },
         {
-            // 2026-03 (봄 신학기 개강 & 봄나들이): 샌드위치 2종, 날치알명란, 묵은지김밥, 비프토마토버거 대폭발!
+            // 2026-03 (봄 신학기 개강 성수기): 화이트햄에그마요샌드위치, 아이돌인기샌드위치, 이달의도시락 1편(신학기 리뉴얼), 날치알명란 대폭발!
             year: 2026, month: 3, days: 31,
-            minRev: 1050000, maxRev: 1130000,
-            dailyCounts: { triangle: [8, 10], sandwich: [3, 4], gimbap: [2, 3], burger: [2, 3] },
+            minRev: 1060000, maxRev: 1140000,
+            dailyCounts: { triangle: [7, 9], sandwich: [3, 4], gimbap: [2, 3], burger: [2, 3] },
             categories: {
                 triangle: [
                     { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 2.8, sellProb: 0.94 },
-                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 3.0, sellProb: 0.92 },
-                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 2.6, sellProb: 0.89 },
-                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 1.8, sellProb: 0.75 },
-                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 1.4, sellProb: 0.58 },
-                    { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 0.9, sellProb: 0.45 }
+                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.8, sellProb: 0.92 },
+                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 2.4, sellProb: 0.89 },
+                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 1.8, sellProb: 0.76 },
+                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 1.2, sellProb: 0.58 },
+                    { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 0.8, sellProb: 0.45 }
                 ],
                 sandwich: [
-                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 3.2, sellProb: 0.94 },
-                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 2.4, sellProb: 0.90 }
+                    { id: '27000388870832', name: '화이트햄에그마요샌드위치', price: 3200, orderWeight: 3.0, sellProb: 0.95 },
+                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 3.0, sellProb: 0.94 },
+                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 2.2, sellProb: 0.89 }
                 ],
                 gimbap: [
-                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 3.0, sellProb: 0.91 },
-                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 1.4, sellProb: 0.62 }
+                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.8, sellProb: 0.91 },
+                    { id: '27000388872052', name: '이달의도시락 1편', price: 5200, orderWeight: 1.6, sellProb: 0.90 },
+                    { id: '27000388862392', name: '혜자로운 도시락', price: 5000, orderWeight: 1.6, sellProb: 0.86 },
+                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 1.2, sellProb: 0.62 }
                 ],
                 burger: [
                     { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 2.8, sellProb: 0.91 },
-                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 2.2, sellProb: 0.80 },
-                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 1.0, sellProb: 0.52 },
-                    { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 0.8, sellProb: 0.44 }
+                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 2.0, sellProb: 0.80 },
+                    { id: '27000388852942', name: '빅&더블스테이크버거(1편)', price: 4200, orderWeight: 1.4, sellProb: 0.72 },
+                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 0.9, sellProb: 0.52 },
+                    { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 0.7, sellProb: 0.44 }
                 ]
             }
         },
         {
-            // 2026-04 (완연한 봄 & 중간고사 기간, 30일): 봄 피크닉 강세 지속 + 시험기간 불닭콘치즈 반등
+            // 2026-04 (완연한 봄 & 중간고사): 샌드위치 강세 + 중간고사 밤샘 간식(빅&더블스테이크버거, 혜자로운 도시락, 불닭콘치즈) 활약!
             year: 2026, month: 4, days: 30,
-            minRev: 1000000, maxRev: 1070000,
-            dailyCounts: { triangle: [8, 10], sandwich: [3, 4], gimbap: [2, 3], burger: [2, 3] },
+            minRev: 1010000, maxRev: 1080000,
+            dailyCounts: { triangle: [7, 9], sandwich: [3, 3], gimbap: [2, 3], burger: [2, 3] },
             categories: {
                 triangle: [
-                    { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 3.0, sellProb: 0.90 },
-                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.8, sellProb: 0.89 },
+                    { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 2.8, sellProb: 0.90 },
+                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.6, sellProb: 0.89 },
                     { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.2, sellProb: 0.88 },
-                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 2.4, sellProb: 0.83 },
+                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 2.2, sellProb: 0.83 },
                     { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 1.4, sellProb: 0.76 },
                     { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 0.7, sellProb: 0.46 }
                 ],
                 sandwich: [
-                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 3.2, sellProb: 0.91 },
-                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 2.6, sellProb: 0.86 }
+                    { id: '27000388870832', name: '화이트햄에그마요샌드위치', price: 3200, orderWeight: 3.0, sellProb: 0.92 },
+                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 3.0, sellProb: 0.91 },
+                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 2.2, sellProb: 0.85 }
                 ],
                 gimbap: [
-                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 3.0, sellProb: 0.89 },
+                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.6, sellProb: 0.89 },
+                    { id: '27000388862392', name: '혜자로운 도시락', price: 5000, orderWeight: 1.6, sellProb: 0.88 },
+                    { id: '27000388872052', name: '이달의도시락 1편', price: 5200, orderWeight: 1.5, sellProb: 0.84 },
                     { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 1.2, sellProb: 0.64 }
                 ],
                 burger: [
-                    { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 3.0, sellProb: 0.88 },
-                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 2.2, sellProb: 0.78 },
+                    { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 2.6, sellProb: 0.88 },
+                    { id: '27000388852942', name: '빅&더블스테이크버거(1편)', price: 4200, orderWeight: 2.0, sellProb: 0.86 },
+                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 1.8, sellProb: 0.78 },
                     { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 0.8, sellProb: 0.54 },
                     { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 0.6, sellProb: 0.44 }
                 ]
             }
         },
         {
-            // 2026-05 (대학 축제 & 야외 나들이 최성수기, 31일): 샌드위치/김밥/토마토버거 최고 호황
+            // 2026-05 (대학 축제 & 봄나들이 절정): 화이트햄에그마요샌드위치, 아이돌인기샌드위치, 비프토마토버거, 묵은지김밥 최전성기!
             year: 2026, month: 5, days: 31,
             minRev: 1100000, maxRev: 1170000,
-            dailyCounts: { triangle: [8, 10], sandwich: [3, 4], gimbap: [2, 3], burger: [2, 3] },
+            dailyCounts: { triangle: [7, 9], sandwich: [3, 4], gimbap: [2, 3], burger: [2, 3] },
             categories: {
                 triangle: [
                     { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.8, sellProb: 0.91 },
                     { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 2.8, sellProb: 0.87 },
-                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.6, sellProb: 0.87 },
-                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 2.2, sellProb: 0.80 },
-                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 1.5, sellProb: 0.68 },
+                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.4, sellProb: 0.86 },
+                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 2.0, sellProb: 0.80 },
+                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 1.4, sellProb: 0.68 },
                     { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 0.6, sellProb: 0.42 }
                 ],
                 sandwich: [
-                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 3.2, sellProb: 0.93 },
-                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 2.8, sellProb: 0.89 }
+                    { id: '27000388870832', name: '화이트햄에그마요샌드위치', price: 3200, orderWeight: 3.2, sellProb: 0.94 },
+                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 3.0, sellProb: 0.93 },
+                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 2.4, sellProb: 0.88 }
                 ],
                 gimbap: [
-                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 3.0, sellProb: 0.92 },
-                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 1.4, sellProb: 0.74 }
+                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.8, sellProb: 0.92 },
+                    { id: '27000388862392', name: '혜자로운 도시락', price: 5000, orderWeight: 1.5, sellProb: 0.84 },
+                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 1.4, sellProb: 0.74 },
+                    { id: '27000388872052', name: '이달의도시락 1편', price: 5200, orderWeight: 1.2, sellProb: 0.70 }
                 ],
                 burger: [
                     { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 3.0, sellProb: 0.90 },
-                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 2.0, sellProb: 0.72 },
+                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 1.8, sellProb: 0.72 },
+                    { id: '27000388852942', name: '빅&더블스테이크버거(1편)', price: 4200, orderWeight: 1.4, sellProb: 0.64 },
                     { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 0.9, sellProb: 0.68 },
                     { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 0.6, sellProb: 0.40 }
                 ]
             }
         },
         {
-            // 2026-06 (초여름 폭염 시작 & 기말/방학 진입, 30일): 마요/명란/샌드위치 급락, 매콤 메뉴 급부상!
+            // 2026-06 (초여름 폭염 시작): 에그마요(화이트햄에그마요샌드위치), 날치알명란, 참치마요B 급락! 불닭/매콤버거/혜자로운도시락 강세
             year: 2026, month: 6, days: 30,
-            minRev: 930000, maxRev: 990000,
-            dailyCounts: { triangle: [8, 10], sandwich: [2, 4], gimbap: [2, 3], burger: [2, 4] },
+            minRev: 930000, maxRev: 1000000,
+            dailyCounts: { triangle: [7, 9], sandwich: [2, 3], gimbap: [2, 3], burger: [2, 3] },
             categories: {
                 triangle: [
                     { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.8, sellProb: 0.93 },
                     { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 1.8, sellProb: 0.86 },
-                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.8, sellProb: 0.74 },
-                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 2.2, sellProb: 0.55 },
-                    { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 2.6, sellProb: 0.46 },
+                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.6, sellProb: 0.74 },
+                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 2.0, sellProb: 0.54 },
+                    { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 2.4, sellProb: 0.45 },
                     { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 0.7, sellProb: 0.52 }
                 ],
                 sandwich: [
-                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 3.0, sellProb: 0.62 },
-                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 2.4, sellProb: 0.50 }
+                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 2.4, sellProb: 0.62 },
+                    { id: '27000388870832', name: '화이트햄에그마요샌드위치', price: 3200, orderWeight: 2.6, sellProb: 0.48 },
+                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 1.8, sellProb: 0.50 }
                 ],
                 gimbap: [
-                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.8, sellProb: 0.85 },
-                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 1.6, sellProb: 0.88 }
+                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 1.8, sellProb: 0.89 },
+                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.6, sellProb: 0.86 },
+                    { id: '27000388862392', name: '혜자로운 도시락', price: 5000, orderWeight: 1.6, sellProb: 0.82 },
+                    { id: '27000388872052', name: '이달의도시락 1편', price: 5200, orderWeight: 1.2, sellProb: 0.56 }
                 ],
                 burger: [
-                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 1.4, sellProb: 0.90 },
-                    { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 2.8, sellProb: 0.82 },
-                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 1.8, sellProb: 0.62 },
+                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 1.6, sellProb: 0.90 },
+                    { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 2.6, sellProb: 0.82 },
+                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 1.6, sellProb: 0.62 },
+                    { id: '27000388852942', name: '빅&더블스테이크버거(1편)', price: 4200, orderWeight: 1.2, sellProb: 0.58 },
                     { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 0.7, sellProb: 0.45 }
                 ]
             }
         },
         {
-            // 2026-07 (한여름 장마 & 하계방학 비수기, 31일): 6월 통계 반영해 명란/마요B/유닛샌드위치 감축, 이열치열 매콤 집중
+            // 2026-07 (한여름 장마 & 방학 비수기): 에그마요/명란 발주 감축, 매콤 메뉴(불닭/매콤불고기/김치김밥) 및 혜자로운 도시락 집중
             year: 2026, month: 7, days: 31,
-            minRev: 830000, maxRev: 890000,
-            dailyCounts: { triangle: [8, 9], sandwich: [2, 2], gimbap: [2, 3], burger: [2, 3] },
+            minRev: 830000, maxRev: 900000,
+            dailyCounts: { triangle: [7, 8], sandwich: [1, 2], gimbap: [2, 3], burger: [2, 3] },
             categories: {
                 triangle: [
-                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 3.4, sellProb: 0.92 },
-                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.8, sellProb: 0.88 },
+                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 3.2, sellProb: 0.92 },
+                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.6, sellProb: 0.88 },
                     { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.0, sellProb: 0.76 },
                     { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 0.8, sellProb: 0.54 },
                     { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 0.8, sellProb: 0.58 },
                     { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 0.5, sellProb: 0.35 }
                 ],
                 sandwich: [
-                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 2.0, sellProb: 0.68 },
-                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 0.8, sellProb: 0.46 }
+                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 1.6, sellProb: 0.68 },
+                    { id: '27000388870832', name: '화이트햄에그마요샌드위치', price: 3200, orderWeight: 0.8, sellProb: 0.45 },
+                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 0.7, sellProb: 0.46 }
                 ],
                 gimbap: [
-                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 2.8, sellProb: 0.90 },
-                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.8, sellProb: 0.89 }
+                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 2.6, sellProb: 0.90 },
+                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.6, sellProb: 0.89 },
+                    { id: '27000388862392', name: '혜자로운 도시락', price: 5000, orderWeight: 1.4, sellProb: 0.85 },
+                    { id: '27000388872052', name: '이달의도시락 1편', price: 5200, orderWeight: 0.6, sellProb: 0.52 }
                 ],
                 burger: [
-                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 3.0, sellProb: 0.91 },
-                    { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 2.6, sellProb: 0.84 },
-                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 1.2, sellProb: 0.65 },
+                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 2.8, sellProb: 0.91 },
+                    { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 2.4, sellProb: 0.84 },
+                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 1.0, sellProb: 0.65 },
+                    { id: '27000388852942', name: '빅&더블스테이크버거(1편)', price: 4200, orderWeight: 0.8, sellProb: 0.56 },
                     { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 0.6, sellProb: 0.50 }
                 ]
             }
         },
         {
-            // 2026-08 (늦여름 폭염 완화 & 개강 준비, 31일): 처서 이후 불고기버거/참치마요/서울엄마콩불 회복세
+            // 2026-08 (늦여름 폭염 완화 & 개강 준비): 빅&더블스테이크버거, 불고기버거, 혜자로운 도시락, 서울엄마콩불 회복세!
             year: 2026, month: 8, days: 31,
-            minRev: 900000, maxRev: 960000,
-            dailyCounts: { triangle: [8, 10], sandwich: [2, 3], gimbap: [2, 3], burger: [2, 3] },
+            minRev: 910000, maxRev: 980000,
+            dailyCounts: { triangle: [7, 9], sandwich: [2, 3], gimbap: [2, 3], burger: [2, 3] },
             categories: {
                 triangle: [
-                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 3.0, sellProb: 0.86 },
+                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.8, sellProb: 0.86 },
                     { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.4, sellProb: 0.88 },
-                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.6, sellProb: 0.82 },
+                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.4, sellProb: 0.82 },
                     { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 1.2, sellProb: 0.85 },
                     { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 1.2, sellProb: 0.78 },
                     { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 0.6, sellProb: 0.52 }
                 ],
                 sandwich: [
-                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 2.2, sellProb: 0.82 },
-                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 1.0, sellProb: 0.62 }
+                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 2.0, sellProb: 0.82 },
+                    { id: '27000388870832', name: '화이트햄에그마요샌드위치', price: 3200, orderWeight: 1.4, sellProb: 0.78 },
+                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 0.9, sellProb: 0.62 }
                 ],
                 gimbap: [
-                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.8, sellProb: 0.86 },
-                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 2.6, sellProb: 0.81 }
+                    { id: '27000388862392', name: '혜자로운 도시락', price: 5000, orderWeight: 1.6, sellProb: 0.88 },
+                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.4, sellProb: 0.86 },
+                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 2.2, sellProb: 0.81 },
+                    { id: '27000388872052', name: '이달의도시락 1편', price: 5200, orderWeight: 1.0, sellProb: 0.76 }
                 ],
                 burger: [
-                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 1.8, sellProb: 0.88 },
-                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 2.8, sellProb: 0.78 },
-                    { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 2.4, sellProb: 0.72 },
+                    { id: '27000388852942', name: '빅&더블스테이크버거(1편)', price: 4200, orderWeight: 1.6, sellProb: 0.87 },
+                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 1.6, sellProb: 0.88 },
+                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 2.2, sellProb: 0.78 },
+                    { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 1.8, sellProb: 0.72 },
                     { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 1.0, sellProb: 0.83 }
                 ]
             }
         },
         {
-            // 2026-09 (가을 2학기 개강 성수기, 30일): 참치마요 A/B, 불고기버거, 아이돌인기샌드위치, 묵은지김밥 고른 강세
+            // 2026-09 (가을 2학기 개강 성수기): 신규 4종과 기존 베스트셀러 고른 활약!
             year: 2026, month: 9, days: 30,
-            minRev: 1030000, maxRev: 1100000,
-            dailyCounts: { triangle: [9, 10], sandwich: [2, 4], gimbap: [2, 3], burger: [2, 4] },
+            minRev: 1040000, maxRev: 1120000,
+            dailyCounts: { triangle: [8, 9], sandwich: [2, 3], gimbap: [2, 3], burger: [2, 3] },
             categories: {
                 triangle: [
-                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 3.0, sellProb: 0.93 },
-                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.6, sellProb: 0.90 },
-                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 2.4, sellProb: 0.88 },
-                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.2, sellProb: 0.85 },
-                    { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 2.0, sellProb: 0.82 },
+                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.8, sellProb: 0.93 },
+                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.4, sellProb: 0.90 },
+                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 2.2, sellProb: 0.88 },
+                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.0, sellProb: 0.85 },
+                    { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 1.8, sellProb: 0.82 },
                     { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 1.0, sellProb: 0.65 }
                 ],
                 sandwich: [
-                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 3.0, sellProb: 0.90 },
-                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 1.2, sellProb: 0.68 }
+                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 2.6, sellProb: 0.90 },
+                    { id: '27000388870832', name: '화이트햄에그마요샌드위치', price: 3200, orderWeight: 2.4, sellProb: 0.89 },
+                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 1.0, sellProb: 0.68 }
                 ],
                 gimbap: [
-                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.8, sellProb: 0.90 },
-                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 1.8, sellProb: 0.78 }
+                    { id: '27000388862392', name: '혜자로운 도시락', price: 5000, orderWeight: 1.8, sellProb: 0.91 },
+                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.4, sellProb: 0.90 },
+                    { id: '27000388872052', name: '이달의도시락 1편', price: 5200, orderWeight: 1.4, sellProb: 0.84 },
+                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 1.6, sellProb: 0.78 }
                 ],
                 burger: [
-                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 3.0, sellProb: 0.91 },
-                    { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 2.2, sellProb: 0.86 },
-                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 1.6, sellProb: 0.75 },
-                    { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 1.0, sellProb: 0.58 }
+                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 2.4, sellProb: 0.91 },
+                    { id: '27000388852942', name: '빅&더블스테이크버거(1편)', price: 4200, orderWeight: 2.2, sellProb: 0.89 },
+                    { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 1.8, sellProb: 0.86 },
+                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 1.4, sellProb: 0.75 },
+                    { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 0.8, sellProb: 0.58 }
                 ]
             }
         },
         {
-            // 2026-10 (가을 성수기 & 1년 데이터 기반 최적 발주 완성형, 31일):
-            // 작년 동월(2025-10, 90.6만원, 판매율 73.5%) 대비 1년 학습 효과로 판매율 ~86%, 매출 ~112만원 달성!
+            // 2026-10 (가을 성수기 & 1년 데이터 기반 최적 발주 완성형):
+            // 혜자로운 도시락, 빅&더블스테이크버거, 화이트햄에그마요샌드위치, 이달의도시락 1편 모두 최적 발주로 고판매율 달성!
             year: 2026, month: 10, days: 31,
             minRev: 1090000, maxRev: 1160000,
-            dailyCounts: { triangle: [9, 10], sandwich: [2, 4], gimbap: [2, 3], burger: [3, 4] },
+            dailyCounts: { triangle: [8, 9], sandwich: [2, 3], gimbap: [2, 3], burger: [2, 3] },
             categories: {
                 triangle: [
-                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 3.0, sellProb: 0.94 },
-                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 3.0, sellProb: 0.93 },
-                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.6, sellProb: 0.90 },
-                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 2.4, sellProb: 0.89 },
+                    { id: '27000388783952', name: '더큰)불닭콘치즈', price: 2000, orderWeight: 2.8, sellProb: 0.94 },
+                    { id: '27000388781592', name: '더큰참치마요 A', price: 1400, orderWeight: 2.8, sellProb: 0.93 },
+                    { id: '27000388784492', name: '스팸콘치즈김치볶음밥', price: 2000, orderWeight: 2.4, sellProb: 0.90 },
+                    { id: '27000388781422', name: '더큰참치마요 B', price: 1800, orderWeight: 2.2, sellProb: 0.89 },
                     { id: '27000388771522', name: '흑백)서울엄마콩불', price: 2000, orderWeight: 1.8, sellProb: 0.84 },
                     { id: '27000388770222', name: '최강록)날치알명란&계란', price: 2000, orderWeight: 0.8, sellProb: 0.68 }
                 ],
                 sandwich: [
-                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 3.0, sellProb: 0.91 },
-                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 1.2, sellProb: 0.72 }
+                    { id: '27000388779542', name: '아이돌인기샌드위치', price: 3300, orderWeight: 2.6, sellProb: 0.91 },
+                    { id: '27000388870832', name: '화이트햄에그마요샌드위치', price: 3200, orderWeight: 2.4, sellProb: 0.90 },
+                    { id: '27000388731092', name: '아이돌유닛샌드위치', price: 3300, orderWeight: 1.0, sellProb: 0.72 }
                 ],
                 gimbap: [
-                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.8, sellProb: 0.90 },
-                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 2.0, sellProb: 0.82 }
+                    { id: '27000388862392', name: '혜자로운 도시락', price: 5000, orderWeight: 1.8, sellProb: 0.92 },
+                    { id: '27000388781112', name: '묵은지참치김밥', price: 2000, orderWeight: 2.4, sellProb: 0.90 },
+                    { id: '27000388872052', name: '이달의도시락 1편', price: 5200, orderWeight: 1.4, sellProb: 0.86 },
+                    { id: '27000388777182', name: '종가)김치참치김밥', price: 2000, orderWeight: 1.8, sellProb: 0.82 }
                 ],
                 burger: [
-                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 3.0, sellProb: 0.92 },
-                    { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 2.4, sellProb: 0.87 },
-                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 1.8, sellProb: 0.80 },
+                    { id: '27000388776192', name: '불고기버거(2편)', price: 4400, orderWeight: 2.4, sellProb: 0.92 },
+                    { id: '27000388852942', name: '빅&더블스테이크버거(1편)', price: 4200, orderWeight: 2.2, sellProb: 0.90 },
+                    { id: '27000388777942', name: '숯불갈비버거', price: 3600, orderWeight: 2.0, sellProb: 0.87 },
+                    { id: '27000388776262', name: '매콤불고기버거', price: 3800, orderWeight: 1.6, sellProb: 0.80 },
                     { id: '27000388782272', name: '비프토마토버거', price: 3600, orderWeight: 0.6, sellProb: 0.55 }
                 ]
             }
@@ -404,11 +554,10 @@ async function seedJanToOct2026() {
         VALUES ?
     `;
 
-    // 월별로 안전하게(1개월씩) 생성 및 목표 매출 범위(80만~120만 원 내) 검증 후 INSERT
     for (const mCfg of monthsConfig) {
         let attempt = 0;
         let result = generateMonthRows(mCfg);
-        while ((result.rev < mCfg.minRev || result.rev > mCfg.maxRev) && attempt < 50) {
+        while ((result.rev < mCfg.minRev || result.rev > mCfg.maxRev) && attempt < 80) {
             result = generateMonthRows(mCfg);
             attempt++;
         }
@@ -423,34 +572,16 @@ async function seedJanToOct2026() {
         SELECT id, item_name, barcode, updated_at
         FROM inventory
         WHERE status = 'expired' 
-          AND created_at >= '2026-01-01 00:00:00' 
+          AND created_at >= '2025-10-01 00:00:00' 
           AND created_at <= '2026-10-31 23:59:59'
     `;
     const [logRes] = await db.query(logSql);
     console.log(`disposal_logs에 ${logRes.affectedRows}건 폐기 이력 동기화 완료 ✅`);
 
-    // 전체 기간(2025-10 ~ 2026-10, 13개월) 월별 요약 출력
-    const [summary] = await db.query(`
-        SELECT 
-            DATE_FORMAT(created_at, '%Y-%m') as month,
-            SUM(quantity) as total_in,
-            SUM(CASE WHEN status = 'sold' THEN quantity ELSE 0 END) as sold_count,
-            SUM(CASE WHEN status = 'expired' THEN quantity ELSE 0 END) as expired_count,
-            ROUND(SUM(CASE WHEN status = 'sold' THEN quantity ELSE 0 END) / SUM(quantity) * 100, 1) as sales_rate,
-            ROUND(SUM(CASE WHEN status = 'expired' THEN quantity ELSE 0 END) / SUM(quantity) * 100, 1) as disposal_rate,
-            SUM(CASE WHEN status = 'sold' THEN IFNULL(sale_price, 0) ELSE 0 END) as total_revenue
-        FROM inventory
-        WHERE created_at >= '2025-10-01 00:00:00' AND created_at <= '2026-10-31 23:59:59'
-        GROUP BY month
-        ORDER BY month
-    `);
-    console.log('\n=== 2025-10 ~ 2026-10 전체 월별 통계 추이 ===');
-    console.table(summary);
-
     await db.end();
 }
 
 if (require.main === module) {
-    seedJanToOct2026().catch(console.error);
+    seedFullYearWithNewProducts().catch(console.error);
 }
-module.exports = seedJanToOct2026;
+module.exports = seedFullYearWithNewProducts;
